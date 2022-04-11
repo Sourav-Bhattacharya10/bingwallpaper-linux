@@ -1,0 +1,37 @@
+.whiteFont {
+    color: white;
+}
+
+.iconFontSize {
+    font: 20px;
+}
+
+.linkClass:hover {
+    color: white;
+}
+
+.cursorPointer {
+    cursor: pointer !important;
+}
+
+.rightPaddingZero {
+    padding-right: 0 !important;
+}
+
+.leftPaddingZero {
+    padding-left: 0 !important;
+}
+
+.togglePaddingLeft {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding-left: 12px !important;
+}
+
+.expandMarginLeft {
+    margin-left: 15px !important;
+}
+
+.rowWidth {
+    width: 40%;
+}
