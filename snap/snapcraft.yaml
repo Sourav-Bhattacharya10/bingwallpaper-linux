@@ -1,0 +1,15 @@
+name: bingwallpaper-ubuntu # you probably want to 'snapcraft register <name>'
+icon: ./assets/bing256x256.png
+base: core20 # the base snap is the execution environment for this snap
+version: '1.0' # just for humans, typically '1.2+git' or '1.3.2'
+summary: Bing Wallpaper app for Ubuntu # 79 char long summary
+description: |
+  Bing Wallpaper app for Ubuntu. Sets latest image from Bing search engine. Current location is India by default.
+
+grade: stable # must be 'stable' to release into candidate/stable channels
+confinement: devmode # use 'strict' once you have the right plugs and slots
+
+parts:
+  my-part:
+    # See 'snapcraft plugins'
+    plugin: nil

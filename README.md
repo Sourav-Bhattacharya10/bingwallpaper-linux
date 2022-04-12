@@ -1,4 +1,4 @@
-# bingwallpaper-linux
+# bingwallpaper-ubuntu
 Bing Wallpaper App for Ubuntu
 
 It mimics the work of Bing Wallpaper app that is created for Windows and Mac by Microsoft.
