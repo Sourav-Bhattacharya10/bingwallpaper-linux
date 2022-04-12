@@ -6,14 +6,21 @@ const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const promisedFS = require('fs').promises;
 const moment = require('moment');
+const AutoLaunch = require('auto-launch');
+
+const logger = require('electron-log');
+// on Linux: ~/.config/{app name}/logs/{process type}.log 
 
 let tray = null;
 let dailyRefreshEnabled = false;
 let win = null;
+let isWindowOpened = false;
 let imageBasePath = "";
 let imageList = [];
 let settingsFile = "bingWallpaperSettings.json";
 let bingSettings = {};
+let autoLaunch = new AutoLaunch({ name: 'Bing Wallpaper', path: "/usr/lib/bingwallpaper-linux/bingwallpaper-linux"});
+let isAppQuitting = false;
 
 const bingSettingsClicked = () => {
     createWindow();
@@ -22,7 +29,7 @@ const bingSettingsClicked = () => {
 const createSettingsFile = async() => {
     try {
         bingSettings = {
-            "isDailyRefreshEnabled": false,
+            "isDailyRefreshEnabled": true,
             "lastModified": moment().format('DD-MMM-YYYY'),
             "imageArray": []
         }
@@ -34,6 +41,7 @@ const createSettingsFile = async() => {
         await promisedFS.writeFile(settingsFilePath, stringifiedSettingsObject)
         console.log('settings file created');
     } catch (error) {
+        logger.error("createSettingsFile catch error : ", error)
         console.log("createSettingsFile catch error : ", error)
     }
 }
@@ -44,9 +52,10 @@ const readSettingsFile = async() => {
         const data = await promisedFS.readFile(settingsFilePath)
             
         bingSettings = JSON.parse(data)
-        console.log(`got data from ${settingsFile} : `,JSON.parse(data))
+        console.log(`got data from ${settingsFile} : `)
     } catch (error) {
         bingSettings = {}
+        logger.error("readSettingsFile catch error : ", error)
         console.log("readSettingsFile catch error : ", error)
     }
 
@@ -57,6 +66,7 @@ const createOrGetImageBasePath = async() => {
     try {
         const {stdout: stdOutput, stderr: stdError} = await exec('echo $HOME/Documents/BingWallpaper')
         if (stdError) {
+            logger.error(`stderr: ${stdError}`)
             console.log(`stderr: ${stdError}`);
             return;
         }
@@ -67,6 +77,7 @@ const createOrGetImageBasePath = async() => {
         const {stdout: stdOutput2, stderr: stdError2} = await exec(command1)
         
         if (stdError2) {
+            logger.error(`stderr2: ${stdError2}`)
             console.log(`stderr2: ${stdError2}`);
             return;
         }
@@ -75,6 +86,7 @@ const createOrGetImageBasePath = async() => {
 
         dailyRefreshEnabled = bingSettings.isDailyRefreshEnabled
     } catch (error) {
+        logger.error("createOrGetImageBasePath catch error: ",error)
         console.log("createOrGetImageBasePath catch error: ",error.message)
         
         if(error.message.includes("Command failed: ls")){
@@ -82,6 +94,7 @@ const createOrGetImageBasePath = async() => {
             const {stdout: stdOutput3, stderr: stdError3} = await exec(command2)
 
             if(stdError3){
+                logger.error("createOrGetImageBasePath catch error stdError : ", stdError3)
                 console.log("createOrGetImageBasePath catch error stdError : ", stdError3)
                 return
             }
@@ -110,6 +123,7 @@ const clearAllPreviousImages = async() => {
             });
         }
     } catch (error) {
+        logger.error("clearAllPreviousImages catch error : ", error)
         console.log("clearAllPreviousImages catch error : ", error)
     }
 }
@@ -140,7 +154,8 @@ const getBingImages = async() => {
             imgResults.sort((a,b) => a.startdate - b.startdate)
         }
     } catch (error) {
-        console.error("getBingImages catch error : ", error)
+        logger.error("getBingImages catch error : ", error)
+        console.log("getBingImages catch error : ", error)
         imgResults = []
     }
 
@@ -161,6 +176,7 @@ const download_image = (url, image_path) =>
       }),
   )
   .catch((errorReason) => {
+      logger.error("download_image catch Error : ", errorReason)
       console.log("download_image catch Error : ", errorReason)
   });
 
@@ -171,6 +187,7 @@ const setWallpaper = async(imageBasePath, filename) => {
         const {stdout, stderr} = await exec(command)
         console.log(`stdout: wallpaper set`);
     } catch (error) {
+        logger.error("setWallpaper catch error : ", error)
         console.log("setWallpaper catch error : ", error)
     }
 }
@@ -188,6 +205,7 @@ const cacheImageApiData = async(bingSettings, imgArray) => {
         console.log('api cached');
     } catch (error) {
         bingSettings = {}
+        logger.error("cacheImageApiData catch error : ", error)
         console.log("cacheImageApiData catch error : ", error)
     }
 
@@ -208,22 +226,39 @@ const changeDailyRefreshOption = async(checked) => {
             
         console.log('updation done');
     } catch (error) {
+        logger.error("changeDailyRefreshOption catch error : ", error)
         console.log("changeDailyRefreshOption catch error : ", error)
     }
 }
 
+const quitButtonClicked = () => {
+    isAppQuitting = true;
+    app.quit();
+}
+
+const autoLaunchApp = () => {
+    if(dailyRefreshEnabled){
+        autoLaunch.enable()
+    }
+    else{
+        autoLaunch.disable()
+    }
+}
+
 const createTray = () => {
-    let icon = nativeImage.createFromPath('assets/bing16x16.png')
+    let icon = nativeImage.createFromPath(path.join(__dirname, '../assets/bing16x16.png'))
     tray = new Tray(icon)
     const contextMenu = Menu.buildFromTemplate([
         { label: `Daily refresh is ${dailyRefreshEnabled ? "on" : "off"}`, type: 'normal', enabled: false },
         { type: 'separator' },
-        { label: 'Bing Wallpaper Settings', type: 'normal', click: bingSettingsClicked}
+        { label: 'Bing Wallpaper Settings', type: 'normal', enabled: !isWindowOpened, click: bingSettingsClicked},
+        { type: 'separator' },
+        { label: 'Quit', type: 'normal', click: quitButtonClicked},
     ])
     tray.setContextMenu(contextMenu)
 }
 
-let proms = [createOrGetImageBasePath, createTray, clearAllPreviousImages, getBingImages] // createOrGetImageBasePath, clearAllPreviousImages, getBingImages
+let proms = [createOrGetImageBasePath, autoLaunchApp, createTray, clearAllPreviousImages, getBingImages] // createOrGetImageBasePath, clearAllPreviousImages, getBingImages
 
 const programExecutionSteps = async() => {
     try {
@@ -236,6 +271,7 @@ const programExecutionSteps = async() => {
             }
         }
     } catch (error) {
+        logger.error("program execution catch error : ", error)
         console.log("program execution catch error : ", error)
     }
 }
@@ -244,7 +280,9 @@ const createWindow = () => {
     win = new BrowserWindow({
         center: true,
         simpleFullscreen: true,
-        icon: 'assets/bing128x128.png',
+        icon: path.join(__dirname, '../assets/bing128x128.png'),
+        resizable: false,
+        show: false,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -253,9 +291,26 @@ const createWindow = () => {
         }
     })
 
+    isWindowOpened = true;
+    app.emit('windowOpen', isWindowOpened)
+
     win.setMenuBarVisibility(false);
-    win.loadFile('public/index.html')
+    win.loadFile(path.join(__dirname, '../public/index.html'))
     // win.webContents.openDevTools();
+
+    win.once('ready-to-show', () => {
+        win.show()
+    })
+
+    win.on('close', function (evt) {
+        if(!isAppQuitting){
+            evt.preventDefault();
+            isWindowOpened = false;
+            app.emit('windowOpen', isWindowOpened);
+
+            win.hide();
+        }
+    });
 }
 
 if(!app.isPackaged){
@@ -268,12 +323,24 @@ app.enableSandbox();
 
 // Entry Point to app
 app.whenReady().then(() => {
-    programExecutionSteps()
+    programExecutionSteps();
 })
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin')
         app.quit()
+})
+
+app.on('windowOpen', (windowOpened) => {
+    isWindowOpened = windowOpened
+    const contextMenu = Menu.buildFromTemplate([
+        { label: `Daily refresh is ${dailyRefreshEnabled ? "on" : "off"}`, type: 'normal', enabled: false },
+        { type: 'separator' },
+        { label: 'Bing Wallpaper Settings', type: 'normal', enabled: !isWindowOpened, click: bingSettingsClicked},
+        { type: 'separator' },
+        { label: 'Quit', type: 'normal', click: quitButtonClicked},
+    ])
+    tray.setContextMenu(contextMenu)
 })
 
 ipcMain.on('browserurl', (_, url) => {
@@ -283,10 +350,13 @@ ipcMain.on('browserurl', (_, url) => {
 ipcMain.on('tray', (_, isEnabled) => {
     changeDailyRefreshOption(isEnabled)
     dailyRefreshEnabled = isEnabled
+    autoLaunchApp()
     const contextMenu = Menu.buildFromTemplate([
         { label: `Daily refresh is ${dailyRefreshEnabled ? "on" : "off"}`, type: 'normal', enabled: false },
         { type: 'separator' },
-        { label: 'Bing Wallpaper Settings', type: 'normal', click: bingSettingsClicked}
+        { label: 'Bing Wallpaper Settings', type: 'normal', enabled: !isWindowOpened, click: bingSettingsClicked},
+        { type: 'separator' },
+        { label: 'Quit', type: 'normal', click: quitButtonClicked},
     ])
     tray.setContextMenu(contextMenu)
 })
@@ -307,6 +377,7 @@ ipcMain.handle('getData', async(event, data) => {
     try {
         imageList = await imageList;
     } catch (error) {
+        logger.error("invoke error : ", error)
         console.log("invoke error : ", error)
     }
     return JSON.parse(JSON.stringify({"isDailyRefreshEnabled": dailyRefreshEnabled, imageBasePath, imageList}))
