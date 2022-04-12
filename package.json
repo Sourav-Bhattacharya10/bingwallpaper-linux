@@ -12,7 +12,8 @@
     "watch": "webpack --config webpack.common.js --watch",
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "make": "electron-forge make"
+    "make": "electron-forge make",
+    "dist": "electron-builder --linux snap"
   },
   "devDependencies": {
     "@babel/core": "^7.17.8",
@@ -62,6 +63,15 @@
           }
         }
       ]
+    }
+  },
+  "build": {
+    "appId": "bingwallpaper-linux",
+    "productName": "Bing Wallpaper",
+    "icon": "./assets/bing256x256.png",
+    "snap": {
+      "category": "Utilities",
+      "summary": "Bing Wallpaper app for Ubuntu"
     }
   }
 }
