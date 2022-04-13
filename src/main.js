@@ -19,7 +19,7 @@ let imageBasePath = "";
 let imageList = [];
 let settingsFile = "bingWallpaperSettings.json";
 let bingSettings = {};
-let autoLaunch = new AutoLaunch({ name: 'Bing Wallpaper', path: "/usr/lib/bingwallpaper-linux/bingwallpaper-linux"});
+let autoLaunch = new AutoLaunch({ name: 'Bing Wallpaper', path: "/usr/lib/bingwallpaper-ubuntu/bingwallpaper-ubuntu"});
 let isAppQuitting = false;
 
 const bingSettingsClicked = () => {
